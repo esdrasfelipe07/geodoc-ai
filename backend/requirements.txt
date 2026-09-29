@@ -1,0 +1,26 @@
+# Web Framework & Server
+fastapi>=0.111.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+pydantic>=2.7.0,<3.0.0
+pydantic-settings>=2.3.0,<3.0.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.1
+httpx>=0.27.0
+
+# Document Processing & PDF Extraction
+pypdf>=4.2.0
+
+# LLM & Vector Store (LangChain Ecosystem)
+langchain>=0.2.11
+langchain-community>=0.2.10
+langchain-core>=0.2.24
+langchain-openai>=0.1.17
+langchain-chroma>=0.1.2
+chromadb>=0.5.4
+
+# Embeddings
+sentence-transformers>=3.0.1
+
+# Testing & Quality
+pytest>=8.2.2
+pytest-asyncio>=0.23.8
