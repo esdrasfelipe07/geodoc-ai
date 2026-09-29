@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # Backend API (Python / FastAPI + RAG)
+  # ==========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: geodoc_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PROJECT_NAME=GeoDoc AI
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - HOST=0.0.0.0
+      - PORT=8000
+      - LLM_PROVIDER=${LLM_PROVIDER:-mock}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3}
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:5173","http://localhost:80"]
+    volumes:
+      - ./backend/data/uploads:/app/data/uploads
+      - ./backend/data/vectorstore:/app/data/vectorstore
+    restart: unless-stopped
+
+  # ==========================================
+  # Frontend Web UI (React + Nginx)
+  # ==========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: geodoc_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ==========================================
+  # Optional: Ollama (Local LLM Execution)
+  # Run with: docker compose --profile local-llm up
+  # ==========================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: geodoc_ollama
+    profiles:
+      - local-llm
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
