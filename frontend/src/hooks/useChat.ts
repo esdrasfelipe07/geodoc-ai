@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { ChatMessage, SourceCitation } from '../types';
 import { api } from '../services/api';
 
@@ -14,26 +14,44 @@ export function useChat(selectedDocId: string | null) {
   ]);
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastQuestionRef = useRef<string>('');
+
+  const cancelStreaming = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsStreaming(false);
+  }, []);
 
   const sendMessage = useCallback(
-    async (questionText: string) => {
+    async (questionText: string, isRetry: boolean = false) => {
       const trimmed = questionText.trim();
       if (!trimmed || isStreaming) return;
 
+      lastQuestionRef.current = trimmed;
       setError(null);
       const userMsgId = `user-${Date.now()}`;
       const assistantMsgId = `asst-${Date.now()}`;
       const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      // 1. Add user message
-      const userMessage: ChatMessage = {
-        id: userMsgId,
-        role: 'user',
-        content: trimmed,
-        timestamp: nowStr,
-      };
+      // Create new abort controller
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
 
-      // 2. Add placeholder assistant message
+      // Add user message if not retrying an existing prompt
+      if (!isRetry) {
+        const userMessage: ChatMessage = {
+          id: userMsgId,
+          role: 'user',
+          content: trimmed,
+          timestamp: nowStr,
+        };
+        setMessages((prev) => [...prev, userMessage]);
+      }
+
+      // Add placeholder assistant message
       const assistantPlaceholder: ChatMessage = {
         id: assistantMsgId,
         role: 'assistant',
@@ -43,10 +61,9 @@ export function useChat(selectedDocId: string | null) {
         timestamp: nowStr,
       };
 
-      setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
+      setMessages((prev) => [...prev, assistantPlaceholder]);
       setIsStreaming(true);
 
-      // 3. Initiate SSE Streaming
       let accumulatedText = '';
       let retrievedSources: SourceCitation[] = [];
 
@@ -79,6 +96,7 @@ export function useChat(selectedDocId: string | null) {
           },
           onDone: () => {
             setIsStreaming(false);
+            abortControllerRef.current = null;
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === assistantMsgId
@@ -89,6 +107,7 @@ export function useChat(selectedDocId: string | null) {
           },
           onError: (err) => {
             setIsStreaming(false);
+            abortControllerRef.current = null;
             setError(err.message || 'Falha na comunicação com o assistente.');
             setMessages((prev) =>
               prev.map((msg) =>
@@ -97,20 +116,28 @@ export function useChat(selectedDocId: string | null) {
                       ...msg,
                       content:
                         accumulatedText ||
-                        '⚠️ Desculpe, ocorreu um erro ao gerar a resposta. Verifique a conexão com a API.',
+                        '⚠️ Desculpe, ocorreu uma instabilidade na conexão com o modelo de IA. Você pode tentar novamente clicando no botão abaixo.',
                       isStreaming: false,
                     }
                   : msg
               )
             );
           },
-        }
+        },
+        signal
       );
     },
     [isStreaming, selectedDocId]
   );
 
+  const retryLastMessage = useCallback(() => {
+    if (lastQuestionRef.current) {
+      sendMessage(lastQuestionRef.current, true);
+    }
+  }, [sendMessage]);
+
   const clearChat = () => {
+    cancelStreaming();
     setMessages([
       {
         id: `welcome-${Date.now()}`,
@@ -119,6 +146,7 @@ export function useChat(selectedDocId: string | null) {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ]);
+    setError(null);
   };
 
   return {
@@ -126,6 +154,8 @@ export function useChat(selectedDocId: string | null) {
     isStreaming,
     error,
     sendMessage,
+    retryLastMessage,
+    cancelStreaming,
     clearChat,
   };
 }

@@ -1,13 +1,15 @@
 import React, { useEffect, useRef } from 'react';
-import { Bot, User, Sparkles, Compass } from 'lucide-react';
+import { Bot, User, Sparkles, Compass, RotateCcw, AlertTriangle } from 'lucide-react';
 import { ChatMessage } from '../../types';
 import { CitationsList } from './CitationsList';
 
 interface ChatAreaProps {
   messages: ChatMessage[];
   isStreaming: boolean;
+  error?: string | null;
   onSendSuggestion: (text: string) => void;
   onOpenPdf?: (docId: string, page: number, filename: string) => void;
+  onRetry?: () => void;
 }
 
 const SUGGESTIONS = [
@@ -20,22 +22,25 @@ const SUGGESTIONS = [
 export const ChatArea: React.FC<ChatAreaProps> = ({
   messages,
   isStreaming,
+  error,
   onSendSuggestion,
   onOpenPdf,
+  onRetry,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isStreaming]);
 
   const showSuggestions = messages.length <= 1;
 
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
       <div className="max-w-4xl mx-auto space-y-6">
-        {messages.map((msg) => {
+        {messages.map((msg, index) => {
           const isUser = msg.role === 'user';
+          const isLastMessage = index === messages.length - 1;
 
           return (
             <div
@@ -80,6 +85,24 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 {/* Citations if available */}
                 {msg.sources && msg.sources.length > 0 && (
                   <CitationsList sources={msg.sources} onOpenPdf={onOpenPdf} />
+                )}
+
+                {/* Retry action for last assistant message if errored */}
+                {!isUser && isLastMessage && error && onRetry && (
+                  <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+                    <span className="text-amber-400 flex items-center space-x-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>Falha de comunicação temporária</span>
+                    </span>
+                    <button
+                      onClick={onRetry}
+                      disabled={isStreaming}
+                      className="px-2.5 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center space-x-1.5 transition-colors"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Tentar novamente</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

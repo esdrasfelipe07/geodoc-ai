@@ -29,7 +29,10 @@ export function App() {
   const {
     messages,
     isStreaming,
+    error: chatError,
     sendMessage,
+    retryLastMessage,
+    cancelStreaming,
     clearChat,
   } = useChat(selectedDocId);
 
@@ -90,11 +93,14 @@ export function App() {
           <ChatArea
             messages={messages}
             isStreaming={isStreaming}
+            error={chatError}
             onSendSuggestion={sendMessage}
             onOpenPdf={handleOpenPdf}
+            onRetry={retryLastMessage}
           />
           <ChatInput
             onSend={sendMessage}
+            onCancelStreaming={cancelStreaming}
             isStreaming={isStreaming}
             selectedDoc={selectedDoc}
             onClearDocFilter={() => setSelectedDocId(null)}

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, CornerDownLeft, FileText, X } from 'lucide-react';
+import { Send, FileText, X, Square } from 'lucide-react';
 import { DocumentMetadata } from '../../types';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
+  onCancelStreaming?: () => void;
   isStreaming: boolean;
   selectedDoc: DocumentMetadata | undefined;
   onClearDocFilter: () => void;
@@ -11,6 +12,7 @@ interface ChatInputProps {
 
 export const ChatInput: React.FC<ChatInputProps> = ({
   onSend,
+  onCancelStreaming,
   isStreaming,
   selectedDoc,
   onClearDocFilter,
@@ -76,28 +78,38 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             value={text}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            disabled={isStreaming}
             placeholder={
               selectedDoc
                 ? `Faça uma pergunta sobre ${selectedDoc.filename}...`
                 : 'Faça uma pergunta técnica sobre os relatórios geofísicos...'
             }
-            className="w-full resize-none py-3.5 pl-4 pr-12 text-sm bg-transparent text-slate-100 placeholder-slate-400 focus:outline-none max-h-32 disabled:opacity-50"
+            className="w-full resize-none py-3.5 pl-4 pr-12 text-sm bg-transparent text-slate-100 placeholder-slate-400 focus:outline-none max-h-32"
           />
 
-          <button
-            type="submit"
-            disabled={!text.trim() || isStreaming}
-            className="absolute right-2 bottom-2 p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 disabled:hover:bg-emerald-600 text-white transition-all shadow-md shadow-emerald-950/50"
-            title="Enviar mensagem"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+          {isStreaming ? (
+            <button
+              type="button"
+              onClick={onCancelStreaming}
+              className="absolute right-2 bottom-2 p-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white transition-all shadow-md shadow-amber-950/50 flex items-center space-x-1"
+              title="Parar resposta"
+            >
+              <Square className="w-4 h-4 fill-white" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!text.trim()}
+              className="absolute right-2 bottom-2 p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 disabled:hover:bg-emerald-600 text-white transition-all shadow-md shadow-emerald-950/50"
+              title="Enviar mensagem"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          )}
         </form>
 
         <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400 px-1">
           <span>Use <strong>Enter</strong> para enviar e <strong>Shift + Enter</strong> para quebra de linha.</span>
-          <span className="font-mono">RAG Ativo • ChromaDB</span>
+          <span className="font-mono">RAG Híbrido • BM25 & ChromaDB</span>
         </div>
       </div>
     </div>

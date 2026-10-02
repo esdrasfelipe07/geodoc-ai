@@ -1,5 +1,7 @@
 import json
 import logging
+import math
+from collections import Counter
 from pathlib import Path
 from typing import List, Dict, Any, Optional, AsyncGenerator
 
@@ -10,33 +12,94 @@ from app.services.llm_service import llm_service
 logger = logging.getLogger(__name__)
 
 
+class BM25Ranker:
+    """
+    Lightweight, high-performance BM25 ranking implementation.
+    Standard parameters: k1=1.5, b=0.75.
+    Provides robust lexical retrieval for technical codes, well IDs, and exact geological terms.
+    """
+    def __init__(self, k1: float = 1.5, b: float = 0.75):
+        self.k1 = k1
+        self.b = b
+
+    def rank(self, query: str, chunks: List[Dict[str, Any]], top_k: int = 4) -> List[tuple[float, Dict[str, Any]]]:
+        if not chunks:
+            return []
+
+        query_tokens = [t.lower() for t in query.split() if len(t) > 1]
+        if not query_tokens:
+            return [(0.0, c) for c in chunks[:top_k]]
+
+        N = len(chunks)
+        tokenized_corpus = []
+        doc_lengths = []
+
+        for c in chunks:
+            tokens = [t.lower() for t in c.get("text", "").split()]
+            tokenized_corpus.append(tokens)
+            doc_lengths.append(len(tokens))
+
+        avg_dl = sum(doc_lengths) / max(N, 1)
+
+        # Calculate Document Frequency (DF) for each query term
+        df = Counter()
+        for tokens in tokenized_corpus:
+            unique_tokens = set(tokens)
+            for qt in query_tokens:
+                if qt in unique_tokens:
+                    df[qt] += 1
+
+        # Compute BM25 scores
+        scores = []
+        for idx, tokens in enumerate(tokenized_corpus):
+            doc_len = doc_lengths[idx]
+            token_counts = Counter(tokens)
+            score = 0.0
+
+            for qt in query_tokens:
+                n = df[qt]
+                if n == 0:
+                    continue
+                # IDF formula with floor clipping
+                idf = math.log(((N - n + 0.5) / (n + 0.5)) + 1.0)
+                freq = token_counts[qt]
+                numerator = freq * (self.k1 + 1.0)
+                denominator = freq + self.k1 * (1.0 - self.b + self.b * (doc_len / max(avg_dl, 1.0)))
+                score += idf * (numerator / max(denominator, 1e-6))
+
+            scores.append((score, chunks[idx]))
+
+        scores.sort(key=lambda x: x[0], reverse=True)
+        return scores[:top_k]
+
+
 class VectorStoreService:
     """
     Manages vector storage and similarity search.
-    Defaults to ChromaDB PersistentClient if available, with resilient fallback.
+    Combines ChromaDB PersistentClient with BM25 ranking for hybrid lexical-semantic retrieval.
     """
     def __init__(self):
         self.persist_dir = settings.chroma_path
         self.collection_name = settings.CHROMA_COLLECTION_NAME
         self.client = None
         self.collection = None
+        self.bm25 = BM25Ranker()
+        self._fallback_store: List[Dict[str, Any]] = []
         self._init_chroma()
 
     def _init_chroma(self):
         try:
             import chromadb
-            from chromadb.config import Settings as ChromaSettings
             self.client = chromadb.PersistentClient(path=str(self.persist_dir))
             self.collection = self.client.get_or_create_collection(
                 name=self.collection_name,
                 metadata={"hnsw:space": "cosine"}
             )
-            logger.info("ChromaDB vector store successfully initialized.")
+            logger.info("ChromaDB vector store inicializado com sucesso.")
         except Exception as e:
-            logger.warning(f"ChromaDB not available or initialization failed ({e}). Using in-memory fallback store.")
+            logger.warning(f"ChromaDB indisponível ({e}). Ativando fallback em memória e disco com BM25.")
             self.client = None
             self.collection = None
-            self._fallback_store: List[Dict[str, Any]] = []
             self._load_fallback_store()
 
     def _get_fallback_file(self) -> Path:
@@ -59,7 +122,7 @@ class VectorStoreService:
             with open(fallback_file, "w", encoding="utf-8") as f:
                 json.dump(self._fallback_store, f, indent=2)
         except Exception as e:
-            logger.error(f"Failed to persist fallback store: {e}")
+            logger.error(f"Falha ao persistir fallback store: {e}")
 
     def add_chunks(self, chunks: List[Dict[str, Any]]):
         if not chunks:
@@ -78,7 +141,7 @@ class VectorStoreService:
                 )
                 return
             except Exception as e:
-                logger.error(f"Error upserting to Chroma collection: {e}")
+                logger.error(f"Erro ao inserir chunks no ChromaDB: {e}")
 
         # Fallback mechanism
         existing_ids = {item["id"] for item in self._fallback_store}
@@ -94,7 +157,7 @@ class VectorStoreService:
                 self.collection.delete(where={"doc_id": doc_id})
                 return
             except Exception as e:
-                logger.error(f"Error deleting from Chroma: {e}")
+                logger.error(f"Erro ao remover do ChromaDB: {e}")
 
         # Fallback
         self._fallback_store = [
@@ -136,36 +199,29 @@ class VectorStoreService:
                             content=doc_text,
                             relevance_score=round(score, 3)
                         ))
-                return citations
+                if citations:
+                    return citations
             except Exception as e:
-                logger.warning(f"Chroma query failed ({e}). Using fallback search.")
+                logger.warning(f"Busca vetorial no Chroma falhou ({e}). Recorrendo ao BM25.")
 
-        # Fallback keyword and lexical matching
+        # BM25 Lexical Ranking fallback
         candidates = self._fallback_store
         if doc_id:
             candidates = [c for c in candidates if c.get("metadata", {}).get("doc_id") == doc_id]
 
-        query_terms = set(query.lower().split())
-        scored_chunks = []
-        for c in candidates:
-            text = c.get("text", "")
-            matches = sum(1 for term in query_terms if term in text.lower())
-            scored_chunks.append((matches, c))
-
-        scored_chunks.sort(key=lambda x: x[0], reverse=True)
-        top_matches = scored_chunks[:top_k]
+        ranked_results = self.bm25.rank(query=query, chunks=candidates, top_k=top_k)
 
         citations = []
-        for match_count, chunk in top_matches:
+        for score, chunk in ranked_results:
             meta = chunk.get("metadata", {})
-            score = 0.5 + min(match_count * 0.1, 0.45)
+            normalized_score = min(0.95, 0.5 + score * 0.1) if score > 0 else 0.5
             citations.append(SourceCitation(
                 doc_id=meta.get("doc_id", "unknown"),
                 filename=meta.get("filename", "relatorio.pdf"),
                 page=meta.get("page", 1),
                 chunk_index=meta.get("chunk_index", 0),
                 content=chunk.get("text", ""),
-                relevance_score=round(score, 3)
+                relevance_score=round(normalized_score, 3)
             ))
         return citations
 
