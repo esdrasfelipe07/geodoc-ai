@@ -7,6 +7,7 @@ interface ChatAreaProps {
   messages: ChatMessage[];
   isStreaming: boolean;
   onSendSuggestion: (text: string) => void;
+  onOpenPdf?: (docId: string, page: number, filename: string) => void;
 }
 
 const SUGGESTIONS = [
@@ -20,6 +21,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   messages,
   isStreaming,
   onSendSuggestion,
+  onOpenPdf,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -77,7 +79,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
                 {/* Citations if available */}
                 {msg.sources && msg.sources.length > 0 && (
-                  <CitationsList sources={msg.sources} />
+                  <CitationsList sources={msg.sources} onOpenPdf={onOpenPdf} />
                 )}
               </div>
             </div>

@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install system dependencies (build-essential and libsqlite3 for ChromaDB if needed)
+# Install system dependencies (build-essential and libsqlite3 for ChromaDB/PyMuPDF if needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gcc \
@@ -36,5 +36,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:8000/api/v1/health/ || exit 1
 
-# Run API server
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run API server with Gunicorn and Uvicorn workers for production concurrency
+CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "--timeout", "120"]

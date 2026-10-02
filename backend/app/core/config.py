@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from typing import List, Union
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -62,6 +62,31 @@ class Settings(BaseSettings):
         path = self.BASE_DIR / self.CHROMA_PERSIST_DIR
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    @model_validator(mode="after")
+    def validate_provider_configuration(self) -> "Settings":
+        provider = self.LLM_PROVIDER.lower().strip()
+        allowed_providers = ["mock", "openai", "ollama"]
+        if provider not in allowed_providers:
+            raise ValueError(
+                f"LLM_PROVIDER inválido ('{self.LLM_PROVIDER}'). "
+                f"Opções aceitas: {', '.join(allowed_providers)}"
+            )
+
+        if provider == "openai" and not self.OPENAI_API_KEY.strip():
+            # In testing environment we can allow empty if mocked, otherwise fail-fast
+            if self.ENVIRONMENT != "testing":
+                raise ValueError(
+                    "OPENAI_API_KEY é obrigatória quando LLM_PROVIDER='openai'. "
+                    "Configure sua chave no arquivo .env ou defina LLM_PROVIDER='mock'."
+                )
+
+        if provider == "ollama" and not self.OLLAMA_BASE_URL.strip():
+            raise ValueError(
+                "OLLAMA_BASE_URL é obrigatória quando LLM_PROVIDER='ollama'."
+            )
+
+        return self
 
     model_config = SettingsConfigDict(
         env_file=".env",

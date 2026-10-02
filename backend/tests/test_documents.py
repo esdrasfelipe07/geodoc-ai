@@ -58,6 +58,13 @@ def test_upload_valid_pdf_and_lifecycle(client):
     docs = list_resp.json()["documents"]
     assert any(d["doc_id"] == doc_id for d in docs)
 
+    # Verify content endpoint for inline viewing
+    content_resp = client.get(f"/api/v1/documents/{doc_id}/content")
+    assert content_resp.status_code == 200
+    assert "application/pdf" in content_resp.headers.get("content-type", "")
+    assert "inline" in content_resp.headers.get("content-disposition", "")
+    assert len(content_resp.content) > 0
+
     # Delete document
     del_resp = client.delete(f"/api/v1/documents/{doc_id}")
     assert del_resp.status_code == 200
@@ -66,3 +73,7 @@ def test_upload_valid_pdf_and_lifecycle(client):
     # Verify not found after delete
     del_again = client.delete(f"/api/v1/documents/{doc_id}")
     assert del_again.status_code == 404
+
+    # Verify content also 404 after delete
+    content_404 = client.get(f"/api/v1/documents/{doc_id}/content")
+    assert content_404.status_code == 404

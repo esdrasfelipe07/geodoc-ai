@@ -77,7 +77,7 @@ export const api = {
   },
 
   /**
-   * Server-Sent Events (SSE) streaming chat
+   * Server-Sent Events (SSE) streaming chat with fallback resilience
    */
   async streamChat(
     payload: ChatRequest,
@@ -86,18 +86,25 @@ export const api = {
       onToken: (token: string) => void;
       onDone: () => void;
       onError: (error: Error) => void;
-    }
+    },
+    signal?: AbortSignal
   ): Promise<void> {
     try {
       const response = await fetch(`${API_BASE}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal,
       });
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.detail || 'Falha ao conectar com o serviço de streaming');
+        // Fallback to standard chat endpoint if streaming endpoint is unavailable
+        console.warn('Streaming falhou, tentando fallback para endpoint REST convencional...');
+        const fallbackRes = await this.sendChat(payload);
+        if (fallbackRes.sources) callbacks.onSources(fallbackRes.sources);
+        if (fallbackRes.answer) callbacks.onToken(fallbackRes.answer);
+        callbacks.onDone();
+        return;
       }
 
       if (!response.body) {
@@ -156,6 +163,10 @@ export const api = {
 
       callbacks.onDone();
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('Stream abortado pelo usuário.');
+        return;
+      }
       callbacks.onError(err instanceof Error ? err : new Error(String(err)));
     }
   }

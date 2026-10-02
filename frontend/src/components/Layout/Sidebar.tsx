@@ -3,11 +3,11 @@ import {
   FileText,
   UploadCloud,
   Trash2,
-  CheckCircle2,
   FolderOpen,
   Filter,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Eye
 } from 'lucide-react';
 import { DocumentMetadata } from '../../types';
 
@@ -17,6 +17,7 @@ interface SidebarProps {
   onSelectDoc: (docId: string | null) => void;
   onUpload: (file: File) => Promise<any>;
   onDelete: (docId: string) => Promise<void>;
+  onViewPdf?: (docId: string, filename: string) => void;
   isUploading: boolean;
   error: string | null;
 }
@@ -27,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectDoc,
   onUpload,
   onDelete,
+  onViewPdf,
   isUploading,
   error
 }) => {
@@ -170,18 +172,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm(`Excluir ${doc.filename}?`)) {
-                        onDelete(doc.doc_id);
-                      }
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-slate-500 transition-all rounded"
-                    title="Excluir relatório"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center space-x-1">
+                    {onViewPdf && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewPdf(doc.doc_id, doc.filename);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-emerald-400 text-slate-500 transition-all rounded hover:bg-slate-800"
+                        title="Visualizar PDF"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Excluir ${doc.filename}?`)) {
+                          onDelete(doc.doc_id);
+                        }
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-slate-500 transition-all rounded hover:bg-slate-800"
+                      title="Excluir relatório"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );

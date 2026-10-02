@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   # ==========================================
-  # Backend API (Python / FastAPI + RAG)
+  # Backend API (Python / FastAPI + RAG + Gunicorn)
   # ==========================================
   backend:
     build:
@@ -34,6 +34,11 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
     restart: unless-stopped
 
   # ==========================================
@@ -51,6 +56,11 @@ services:
         condition: service_healthy
     networks:
       - geodoc_network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
     restart: unless-stopped
 
   # ==========================================
@@ -68,6 +78,17 @@ services:
       - ollama_data:/root/.ollama
     networks:
       - geodoc_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8192M
     restart: unless-stopped
 
 networks:

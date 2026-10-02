@@ -1,6 +1,8 @@
 import logging
 from typing import List
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from fastapi.responses import FileResponse
+
 from app.models.schemas import (
     DocumentUploadResponse,
     DocumentListResponse,
@@ -47,7 +49,7 @@ async def upload_document(file: UploadFile = File(...)):
         # 1. Salva o arquivo no diretório de uploads
         doc_id, file_path = document_service.save_file(file.filename, content)
 
-        # 2. Extrai páginas e fragmenta em chunks com overlap
+        # 2. Extrai páginas e fragmenta em chunks estruturados
         total_pages, chunks = document_service.extract_text_and_chunks(
             file_path=file_path,
             doc_id=doc_id,
@@ -93,6 +95,36 @@ async def list_documents():
     return DocumentListResponse(
         total_documents=len(docs),
         documents=docs
+    )
+
+
+@router.get(
+    "/{doc_id}/content",
+    summary="Obter arquivo PDF original para visualização inline"
+)
+async def get_document_content(doc_id: str):
+    """
+    Retorna o arquivo binário PDF para visualização embutida no frontend (PDF Viewer).
+    """
+    existing = document_service.get_document(doc_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Documento com ID '{doc_id}' não encontrado no manifesto."
+        )
+
+    file_path = document_service.get_document_file_path(doc_id)
+    if not file_path or not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Arquivo físico do PDF não encontrado no disco."
+        )
+
+    return FileResponse(
+        path=str(file_path),
+        media_type="application/pdf",
+        filename=existing.filename,
+        content_disposition_type="inline"
     )
 
 

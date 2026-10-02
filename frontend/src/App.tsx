@@ -3,12 +3,18 @@ import { Navbar } from './components/Layout/Navbar';
 import { Sidebar } from './components/Layout/Sidebar';
 import { ChatArea } from './components/Chat/ChatArea';
 import { ChatInput } from './components/Chat/ChatInput';
+import { PdfViewerPanel } from './components/Documents/PdfViewerPanel';
 import { useDocuments } from './hooks/useDocuments';
 import { useChat } from './hooks/useChat';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 export function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeViewer, setActiveViewer] = useState<{
+    docId: string;
+    filename: string;
+    page: number;
+  } | null>(null);
 
   const {
     documents,
@@ -29,6 +35,22 @@ export function App() {
 
   const selectedDoc = documents.find((d) => d.doc_id === selectedDocId);
 
+  const handleOpenPdf = (docId: string, page: number, filename: string) => {
+    setActiveViewer({
+      docId,
+      filename,
+      page: page || 1,
+    });
+  };
+
+  const handleViewFromSidebar = (docId: string, filename: string) => {
+    setActiveViewer({
+      docId,
+      filename,
+      page: 1,
+    });
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
       {/* Top Navbar */}
@@ -36,7 +58,7 @@ export function App() {
 
       {/* Main Workspace Area */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Toggle Sidebar Button for Mobile & Desktop */}
+        {/* Toggle Sidebar Button for Mobile */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="absolute top-3 left-3 z-10 p-1.5 rounded-lg bg-slate-800/90 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors shadow-md md:hidden"
@@ -57,17 +79,19 @@ export function App() {
             onSelectDoc={setSelectedDocId}
             onUpload={uploadDocument}
             onDelete={deleteDocument}
+            onViewPdf={handleViewFromSidebar}
             isUploading={isUploading}
             error={docError}
           />
         </div>
 
         {/* Chat Conversation & Input */}
-        <main className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden">
+        <main className="flex-1 flex flex-col h-full bg-slate-950 overflow-hidden relative">
           <ChatArea
             messages={messages}
             isStreaming={isStreaming}
             onSendSuggestion={sendMessage}
+            onOpenPdf={handleOpenPdf}
           />
           <ChatInput
             onSend={sendMessage}
@@ -76,6 +100,16 @@ export function App() {
             onClearDocFilter={() => setSelectedDocId(null)}
           />
         </main>
+
+        {/* Integrated Side-by-Side PDF Viewer Panel */}
+        {activeViewer && (
+          <PdfViewerPanel
+            docId={activeViewer.docId}
+            filename={activeViewer.filename}
+            initialPage={activeViewer.page}
+            onClose={() => setActiveViewer(null)}
+          />
+        )}
       </div>
     </div>
   );
