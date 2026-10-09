@@ -47,7 +47,6 @@ Toda a documentação técnica foi estruturada detalhadamente no diretório [`do
 | 🔌 **[`docs/api_reference.md`](docs/api_reference.md)** | **Referência de API:** todos os endpoints, esquemas JSON, exemplos cURL, status HTTP e eventos SSE. |
 | 🏛️ **[`docs/architecture.md`](docs/architecture.md)** | **Arquitetura detalhada:** diagramas de sequência, fluxo de dados e estratégias de resiliência. |
 | 🐳 **[`docs/docker_guide.md`](docs/docker_guide.md)** | **Guia de conteinerização:** multi-stage builds, rede isolada, healthchecks e Makefile. |
-| 🎯 **[`docs/guia_entrevista.md`](docs/guia_entrevista.md)** | **Guia para entrevista técnica:** pitch de 30s/2min, perguntas técnicas frequentes e respostas ideais. |
 
 ---
 
