@@ -6,18 +6,19 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5+-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com)
 
-**GeoDoc AI** é uma aplicação Fullstack de alta performance projetada para equipes de engenharia, geociências e geofísica. Ela permite carregar relatórios técnicos complexos (dados sísmicos 3D, perfis de poço, reservatórios e estudos ambientais) e realizar consultas semânticas utilizando **IA Generativa** e **RAG (Retrieval-Augmented Generation)** com citação de fontes por página e streaming em tempo real.
+**GeoDoc AI** é uma aplicação Fullstack de alta performance projetada para equipes de engenharia, geociências e geofísica. Ela permite carregar relatórios técnicos complexos (dados sísmicos 3D, perfis de poço, reservatórios e estudos ambientais) e realizar consultas semânticas utilizando **IA Generativa** e **RAG Híbrido (Retrieval-Augmented Generation)** com citação auditável de fontes por página, visualizador de PDF lado a lado integrado e streaming em tempo real.
 
 ---
 
 ## 📸 Funcionalidades Principais
 
-* **⚡ Chat com Streaming em Tempo Real (SSE):** Efeito de digitação contínuo via *Server-Sent Events* consumindo modelos da OpenAI ou instâncias locais do Ollama.
-* **📑 RAG com Citação de Fontes:** Cada resposta técnica exibe as páginas exatas e os trechos de onde a informação foi extraída, combatendo alucinações.
-* **📂 Ingestão de PDFs e Chunking Geofísico:** Extração textual e particionamento em janela deslizante (*sliding window*) com overlap para reter integridade contextual.
+* **⚡ Chat com Streaming em Tempo Real (SSE):** Efeito de digitação contínuo via *Server-Sent Events* consumindo modelos da OpenAI ou instâncias locais do Ollama com latência zero.
+* **📑 RAG Híbrido com Citação de Fontes:** Combina busca vetorial por cosseno (**ChromaDB**) e ranking léxico (**BM25**) para encontrar conceitos geológicos e identificadores de poços exatos.
+* **🔍 Visualizador de PDF Lado a Lado:** Clique na página citada pela IA (*"Pág. 2"*) e o PDF original abre instantaneamente ao lado do chat na página correta.
+* **📂 Ingestão com PyMuPDF & Chunking Semântico:** Extração geométrica por blocos de texto (`fitz`), preservando colunas múltiplas e tabelas técnicas sem quebrar sentenças.
 * **🎯 Filtro de Escopo por Relatório:** Permite alternar entre consultar toda a base de relatórios ou isolar a consulta a um único documento técnico selecionado.
-* **🛡️ Arquitetura Resiliente & Modo Mock:** Opera perfeitamente com OpenAI, Ollama ou em modo Mock sem exigir chaves externas para demonstrações rápidas.
-* **🐳 Docker Compose Unificado:** Suba toda a infraestrutura (frontend React, backend FastAPI e volumes de persistência) com um único comando.
+* **🛡️ Arquitetura Resiliente & Modo Mock:** Opera com OpenAI, Ollama ou em modo Mock (100% offline e sem custos de API) para testes rápidos e demonstrações.
+* **🐳 Docker Compose Unificado:** Ambiente de produção otimizado com Gunicorn (4 workers) e Nginx, além de ambiente de desenvolvimento com hot-reload.
 
 ---
 
@@ -26,13 +27,27 @@
 ```mermaid
 flowchart LR
     User([Usuário / Geofísico]) --> ReactApp[Frontend React + Vite]
-    ReactApp -->|Upload Multipart & SSE Streaming| FastAPI[Backend FastAPI]
-    FastAPI -->|Chunking & Indexação| ChromaDB[(Vector Store ChromaDB)]
+    ReactApp -->|Upload Multipart & SSE Streaming| FastAPI[Backend FastAPI + Gunicorn]
+    FastAPI -->|PyMuPDF & Chunking| ChromaDB[(Vector Store ChromaDB)]
+    FastAPI -->|Busca Léxica| BM25[BM25 Ranker]
     FastAPI -->|Prompt Enriquecido| LLM[OpenAI / Ollama / Mock]
     LLM -.->|Tokens em Streaming| ReactApp
+    FastAPI -.->|PDF Binário Inline| ReactApp
 ```
 
-> 📖 **Para mais detalhes:** Consulte o documento completo em [`docs/architecture.md`](docs/architecture.md).
+---
+
+## 📚 Documentação Completa do Projeto
+
+Toda a documentação técnica foi estruturada detalhadamente no diretório [`docs/`](docs/):
+
+| Documento | Descrição |
+| :--- | :--- |
+| 📖 **[`docs/documentacao_completa.md`](docs/documentacao_completa.md)** | **Manual técnico completo:** contextualização de negócio, algoritmos de RAG, chunks, streaming e arquitetura. |
+| 🔌 **[`docs/api_reference.md`](docs/api_reference.md)** | **Referência de API:** todos os endpoints, esquemas JSON, exemplos cURL, status HTTP e eventos SSE. |
+| 🏛️ **[`docs/architecture.md`](docs/architecture.md)** | **Arquitetura detalhada:** diagramas de sequência, fluxo de dados e estratégias de resiliência. |
+| 🐳 **[`docs/docker_guide.md`](docs/docker_guide.md)** | **Guia de conteinerização:** multi-stage builds, rede isolada, healthchecks e Makefile. |
+| 🎯 **[`docs/guia_entrevista.md`](docs/guia_entrevista.md)** | **Guia para entrevista técnica:** pitch de 30s/2min, perguntas técnicas frequentes e respostas ideais. |
 
 ---
 
@@ -63,16 +78,16 @@ docker compose --profile local-llm up --build
 cd backend
 python -m venv .venv
 source .venv/bin/activate  # No Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 
 # Copie o arquivo de variáveis de ambiente
 cp .env.example .env
 
-# Inicie o servidor
+# Inicie o servidor com hot-reload
 uvicorn app.main:app --reload --port 8000
 ```
 
-#### 2. Frontend (React)
+#### 2. Frontend (React em outro terminal)
 ```bash
 cd frontend
 npm install
